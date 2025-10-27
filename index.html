@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MiniPix — AI 그림 갤러리 (Enhanced)</title>
+<style>
+:root{
+  --bg:#fafbfd; --card:#fff; --muted:#6b7280; --accent:#2b6ef6;
+  --danger:#c53;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Noto Sans KR',sans-serif;background:var(--bg);color:#111;-webkit-font-smoothing:antialiased}
+.topbar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #eef2ff;background:#fff;position:sticky;top:0;z-index:60}
+.brand{font-weight:700;color:var(--accent);text-decoration:none;font-size:16px;cursor:pointer}
+.tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:8px 10px;border-radius:8px;border:1px solid #e6e9f2;background:#fff;cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff;border:0}
+.btn.danger{border-color:#f8d3d3;color:var(--danger)}
+.container{max-width:1100px;margin:20px auto;padding:0 16px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.card{background:#fff;border-radius:12px;overflow:hidden;border:1px solid #f0f3fb;cursor:pointer;position:relative;height:260px;display:flex;flex-direction:column}
+.thumb-wrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f6f8fb}
+.card img.thumb{width:100%;height:100%;object-fit:cover;display:block}
+.hover{position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.35));color:#fff;padding:12px;opacity:0;transition:opacity .18s;display:flex;flex-direction:column;justify-content:flex-end}
+.card:hover .hover{opacity:1}
+.hover .title{font-weight:600}
+.hover .meta{font-size:12px;color:#e6eefc;margin-top:6px}
+.empty{text-align:center;color:var(--muted);padding:40px}
+.post-page{background:#fff;padding:18px;border-radius:12px;border:1px solid #eef2ff;margin-bottom:40px}
+.image-stack{display:flex;flex-direction:column;gap:12px;margin:12px 0}
+.image-stack img{width:100%;height:auto;border-radius:8px;display:block}
+.post-body{white-space:pre-wrap;color:#222;margin-top:10px}
+.tags{margin-top:8px}
+.tag{display:inline-block;background:#eef2ff;color:var(--accent);padding:6px 8px;border-radius:6px;margin-right:6px}
+.editor{display:flex;flex-direction:column;gap:10px;background:#fff;padding:16px;border-radius:12px;border:1px solid #eef2ff}
+input,textarea,select{padding:10px;border-radius:8px;border:1px solid #e6e9f2}
+.file{display:inline-block;padding:8px 12px;border-radius:8px;border:1px dashed #dfe7ff;background:#fbfcff;cursor:pointer}
+.preview{display:flex;gap:8px;flex-wrap:wrap}
+.preview img{width:120px;height:120px;object-fit:cover;border-radius:8px}
+.row{display:flex;gap:8px;align-items:center}
+.small{font-size:13px;color:var(--muted)}
+.controls{display:flex;gap:8px;margin-top:12px}
+.toolbar-search{display:flex;gap:8px;align-items:center;background:#fff;padding:6px;border-radius:8px;border:1px solid #eef2ff}
+.input-search{padding:8px;border-radius:8px;border:1px solid #e6e9f2}
+.carousel-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.carousel-thumbs img{width:72px;height:72px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent}
+.carousel-thumbs img.active{border-color:var(--accent)}
+.user-badge{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#f6f8ff;border:1px solid #e6eefc;color:var(--muted)}
+.settings-modal-backdrop, .login-modal-backdrop, .profile-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:220}
+.settings-modal, .login-modal, .profile-modal{background:#fff;padding:18px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.25);max-width:520px}
+.copy-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:200}
+.copy-modal{background:#fff;padding:18px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.25);max-width:420px;text-align:center}
+.copy-modal h4{margin:0 0 8px;font-size:16px}
+.copy-modal p{margin:0 0 12px;color:var(--muted)}
+.copy-modal .btn{padding:8px 12px}
+.nsfw-badge{position:absolute;left:8px;top:8px;background:#ffefd5;color:#b24;border-radius:6px;padding:4px 6px;font-size:12px;border:1px solid #ffd6a6}
+.nsfw-overlay{position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.5));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px}
+.profile-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #fff}
+@media (max-width:720px){
+  .card{height:200px}
+  .preview img{width:88px;height:88px}
+  .copy-modal{width:90%}
+  .topbar{padding:8px}
+  .tools{gap:6px}
+  .brand{font-size:14px}
+}
+</style>
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div class="brand" id="brand" tabindex="0" title="홈으로">MiniPix — AI 그림 갤러리</div>
+    <div class="tools" role="navigation" aria-label="도구">
+      <div class="toolbar-search" role="search" aria-label="검색">
+        <input id="search" class="input-search" placeholder="검색 (제목/본문/태그)" aria-label="검색" />
+        <select id="sort" class="input-search" style="width:120px" aria-label="정렬">
+          <option value="desc">최신순</option>
+          <option value="asc">오래된순</option>
+        </select>
+        <select id="filter" class="input-search" style="width:140px" aria-label="카테고리">
+          <option value="all">전체</option>
+          <option value="photos">사진</option>
+          <option value="text">글</option>
+          <option value="memo">메모</option>
+        </select>
+      </div>
+
+      <div id="userArea" class="user-badge" style="display:none" aria-hidden="true">
+        <img id="userAvatar" class="profile-avatar" src="" alt="프로필 사진" style="display:none"/>
+        <span id="userName">Guest</span>
+        <button id="profileBtn" class="btn" title="프로필">프로필</button>
+        <button id="logoutBtn" class="btn">로그아웃</button>
+      </div>
+
+      <button id="loginBtn" class="btn" title="로그인">로그인</button>
+      <button id="registerBtn" class="btn" title="회원가입">회원가입</button>
+      <button id="settingsBtn" class="btn" title="설정">설정</button>
+
+      <button id="btnNew" class="btn primary" title="새 글 올리기">새 글 올리기</button>
+      <button id="btnExport" class="btn" title="내보내기">내보내기</button>
+      <label class="btn file" title="가져오기">가져오기<input id="importFile" type="file" accept="application/json" style="display:none" /></label>
+      <button id="btnClear" class="btn" title="전체 삭제">전체 삭제</button>
+    </div>
+  </header>
+
+  <main class="container" id="app" role="main">
+    <section id="gallery" class="gallery" aria-live="polite"></section>
+    <div id="empty" class="empty" style="display:none">게시물이 없습니다. '새 글 올리기'로 시작하세요.</div>
+  </main>
+
+  <!-- Editor Modal -->
+  <div id="editorModal" class="login-modal-backdrop" aria-hidden="true">
+    <div class="editor-modal login-modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle" style="width:100%;max-width:920px;max-height:90vh;overflow:auto">
+      <button id="editorClose" style="position:absolute;right:12px;top:12px;border:0;background:#fff;padding:6px;border-radius:6px;cursor:pointer" aria-label="닫기">✕</button>
+      <h3 id="editorTitle">새 글 올리기</h3>
+      <form id="editorForm" class="editor" onsubmit="return false;" aria-label="작성 폼">
+        <input id="title" placeholder="제목 (선택)" aria-label="제목" />
+        <textarea id="body" rows="6" placeholder="본문" aria-label="본문"></textarea>
+
+        <div class="row">
+          <label class="file">이미지 선택<input id="files" type="file" accept="image/*" multiple style="display:none" /></label>
+          <div id="selectedNames" class="small" style="margin-left:8px">선택된 파일 없음</div>
+          <div style="margin-left:auto" class="small">최대 200장 권장 • EXIF 제거</div>
+        </div>
+
+        <div class="preview" id="preview" aria-live="polite"></div>
+
+        <input id="tags" placeholder="태그 (쉼표 구분)" />
+        <div class="row" style="align-items:center">
+          <select id="category"><option value="photos">사진</option><option value="text">글</option><option value="memo">메모</option></select>
+
+          <label style="margin-left:8px" title="NSFW 여부를 표시">
+            <input id="nsfwCheck" type="checkbox" /> NSFW
+          </label>
+          <label style="margin-left:8px" title="자동 NSFW 검사 사용">
+            <input id="autoNsfwCheck" type="checkbox" /> 자동 검사
+          </label>
+
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button id="btnSave" class="btn primary">저장</button>
+            <button id="btnSaveClose" class="btn">저장 후 닫기</button>
+          </div>
+        </div>
+
+        <!-- anonymous delete password (required for anonymous posts) -->
+        <div id="anonPassRow" style="display:none">
+          <label class="small">익명 삭제용 비밀번호 (필수 - 익명 업로드 시)</label>
+          <input id="anonPassword" placeholder="익명 글 삭제용 비밀번호" type="password" />
+        </div>
+
+        <div id="editorProgress" class="small" style="margin-top:8px"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Post View -->
+  <div id="postView" style="display:none;padding:20px;max-width:900px;margin:20px auto;z-index:30">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 id="postTitleView">제목</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="btnBack" class="btn">목록</button>
+        <button id="btnEditPost" class="btn">편집</button>
+        <button id="btnDeletePost" class="btn danger">삭제</button>
+      </div>
+    </div>
+
+    <div class="post-page" id="postContent" aria-live="polite">
+      <div id="metaView" class="small" style="color:var(--muted)"></div>
+      <div class="image-stack" id="imageStack"></div>
+      <div id="carouselThumbs" class="carousel-thumbs" style="display:none"></div>
+      <div id="postBody" class="post-body"></div>
+      <div id="postTags" class="tags"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <a id="downloadLink" class="btn" href="#" download>원본 다운로드</a>
+        <button id="copyBodyBtn" class="btn">본문 복사</button>
+        <button id="bulkDownloadBtn" class="btn">일괄 다운로드</button>
+        <button id="claimBtn" class="btn" style="display:none">익명 소유권 주장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsBackdrop" class="settings-modal-backdrop" aria-hidden="true">
+    <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <h3 id="settingsTitle">설정</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+        <label><input id="optAllowAnon" type="checkbox"> 익명 업로드 허용</label>
+        <label><input id="optRequireMember" type="checkbox"> 회원 전용 모드 (활성 시 비회원은 업로드 불가)</label>
+        <label><input id="optAllowNSFW" type="checkbox"> NSFW 게시물 보기 허용</label>
+        <label><input id="optAutoNsfw" type="checkbox"> 업로드 시 자동 NSFW 검사 사용</label>
+
+        <div>
+          <label class="small">백업 서버 URL (선택)</label>
+          <input id="backupServer" placeholder="https://example.com/backup" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="btnBackupNow" class="btn">지금 백업</button>
+            <button id="btnClearUsers" class="btn danger" title="테스트용: 로컬에 저장된 모든 사용자 삭제">사용자 DB 초기화</button>
+          </div>
+          <div class="small">서버는 JSON POST (application/json)을 받아야 하며 CORS 허용 필요</div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button id="settingsClose" class="btn">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login / Register / Reset Modal -->
+  <div id="loginBackdrop" class="login-modal-backdrop" aria-hidden="true">
+    <div class="login-modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <h3 id="loginTitle">로그인 / 회원가입</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <input id="authUsername" placeholder="아이디 (영문/숫자 추천)" />
+        <input id="authPassword" placeholder="비밀번호" type="password" />
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="doRegister" class="btn">회원가입</button>
+          <button id="doLogin" class="btn primary">로그인</button>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
+          <button id="doResetToken" class="btn">리셋 토큰 생성</button>
+          <button id="useResetToken" class="btn">리셋 토큰 사용</button>
+        </div>
+        <div id="authMsg" class="small" style="color:var(--muted)"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">
+          첫 가입자는 자동으로 관리자(admin) 권한이 부여됩니다. (로컬 환경 전용)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div id="profileBackdrop" class="profile-modal-backdrop" aria-hidden="true">
+    <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+      <h3 id="profileTitle">프로필</h3>
+      <div style="display:flex;gap:10px;align-items:center">
+        <img id="profileAvatarPreview" class="profile-avatar" src="" alt="아바타 미리보기" style="display:none"/>
+        <div style="flex:1">
+          <input id="profileDisplayName" placeholder="표시 이름" />
+          <textarea id="profileBio" rows="3" placeholder="자기소개"></textarea>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+            <label class="file">아바타 선택<input id="profileAvatarFile" type="file" accept="image/*" style="display:none" /></label>
+            <button id="saveProfile" class="btn primary">저장</button>
+            <button id="changePassword" class="btn">비밀번호 변경</button>
+          </div>
+          <div id="pwChangeRow" style="display:none;margin-top:8px">
+            <input id="pwOld" placeholder="현재 비밀번호" type="password" />
+            <input id="pwNew" placeholder="새 비밀번호 (4자 이상)" type="password" />
+            <button id="doChangePw" class="btn">변경</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copy confirmation modal -->
+  <div id="copyModalBackdrop" class="copy-modal-backdrop" >
+    <div class="copy-modal" role="dialog" aria-modal="true" aria-labelledby="copyModalTitle">
+      <h4 id="copyModalTitle">복사 완료!</h4>
+      <p>본문이 클립보드에 복사되었습니다.</p>
+      <div style="display:flex;justify-content:center"><button id="copyModalOk" class="btn primary">확인</button></div>
+    </div>
+  </div>
+
+
+  <!-- JSZip: 일괄 다운로드용 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/*
+ Enhanced MiniPix single-file:
+ - 회원 프로필 (아바타, 표시이름, 소개)
+ - 게시물 작성자 이름 표기 및 게시물에서 프로필 보기
+ - 익명 게시물 '소유권 주장'(Claim)을 통해 멤버가 익명 게시물을 본인 것으로 전환 가능
+ - 비밀번호 변경 + 리셋 토큰(로컬 표시 방식)
+ - NSFW 표기/필터링 + 자동 검사(간단 키워드 기반) + 설정에서 토글
+ - UX 개선: 접근성(aria), 반응형 CSS
+ - 서버 백업 버튼 (POST JSON) — 서버는 CORS 허용 필요
+ - 보안/한계: 모든 데이터는 로컬 브라우저에 저장됩니다. 서버 기능은 선택사항으로, 실제 운영에는 서버 인증이 필요합니다.
+*/
+
+// ---- config ----
+const DB_NAME = 'minipix-db-v2';
+const STORE = 'posts';
+const USER_STORE = 'users';
+const DB_VERSION = 4; // bumped for profiles
+const MAX_FILES = 200;
+const THUMB_SIZE = 400;
+const MAX_MAIN_WIDTH = 1920;
+const IMAGE_MIME = 'image/jpeg';
+const IMAGE_QUALITY = 0.85;
+
+// ---- app state ----
+let currentUser = null; // { id, username, role }
+let settings = {
+  allowAnon: true,
+  allowNSFW: false,
+  requireMember: false,
+  autoNsfw: false
+};
+
+// load settings from localStorage
+try { const s = JSON.parse(localStorage.getItem('minipix_settings')||'{}'); settings = Object.assign(settings, s); } catch(e){}
+
+// ---- indexedDB helpers ----
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains(STORE)){
+        const os = db.createObjectStore(STORE,{keyPath:'id'});
+        os.createIndex('created_at','created_at',{unique:false});
+      }
+      if(!db.objectStoreNames.contains(USER_STORE)){
+        const us = db.createObjectStore(USER_STORE,{keyPath:'id'});
+        us.createIndex('username','username',{unique:true});
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+async function dbPut(obj, store=STORE){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).put(obj);
+    tx.oncomplete = ()=> res(obj);
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+async function dbGetAll(store=STORE){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(store,'readonly');
+    const r = tx.objectStore(store).getAll();
+    r.onsuccess = ()=> res(r.result || []);
+    r.onerror = e => rej(e.target.error);
+  });
+}
+async function dbGet(id, store=STORE){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(store,'readonly');
+    const r = tx.objectStore(store).get(id);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = e => rej(e.target.error);
+  });
+}
+async function dbDelete(id, store=STORE){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).delete(id);
+    tx.oncomplete = ()=> res();
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+async function dbClear(store=STORE){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).clear();
+    tx.oncomplete = ()=> res();
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+
+// ---- utils ----
+function uid(prefix='p'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+function qs(sel, ctx=document){ return ctx.querySelector(sel); }
+function qsa(sel, ctx=document){ return Array.from((ctx||document).querySelectorAll(sel)); }
+function toast(msg, timeout=1600){
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.position='fixed'; el.style.right='18px'; el.style.bottom='18px';
+  el.style.background='#111'; el.style.color='#fff'; el.style.padding='10px 14px';
+  el.style.borderRadius='8px'; el.style.zIndex=9999; document.body.appendChild(el);
+  setTimeout(()=>el.remove(), timeout);
+}
+function formatDate(iso){ return new Date(iso).toLocaleString(); }
+
+// manage object URLs (avoid leaks)
+const _urls = new Set();
+function makeURL(blob){ if(!blob) return null; const u = URL.createObjectURL(blob); _urls.add(u); return u; }
+function revokeAllURLs(){ _urls.forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(_){} }); _urls.clear(); }
+
+// ---- image processing ----
+function readFileAsImage(file){
+  return new Promise((res, rej)=>{
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = ()=> res(img);
+      img.onerror = rej;
+      img.src = fr.result;
+    };
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+}
+async function processImage(img, maxWidth=MAX_MAIN_WIDTH, thumbSize=THUMB_SIZE, mime=IMAGE_MIME, quality=IMAGE_QUALITY){
+  // main
+  const ratio = Math.min(1, maxWidth / img.width);
+  const w = Math.round(img.width * ratio), h = Math.round(img.height * ratio);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+  const mainBlob = await new Promise(r => c.toBlob(r, mime, quality));
+
+  // thumbnail (cover center)
+  const scale = Math.max(thumbSize / img.width, thumbSize / img.height);
+  const sw = Math.round(img.width * scale), sh = Math.round(img.height * scale);
+  const tmp = document.createElement('canvas'); tmp.width = sw; tmp.height = sh;
+  const tctx = tmp.getContext('2d'); tctx.drawImage(img, 0, 0, sw, sh);
+  const sx = Math.max(0, Math.round((sw - thumbSize) / 2)), sy = Math.max(0, Math.round((sh - thumbSize) / 2));
+  const t = document.createElement('canvas'); t.width = thumbSize; t.height = thumbSize;
+  t.getContext('2d').drawImage(tmp, sx, sy, thumbSize, thumbSize, 0, 0, thumbSize, thumbSize);
+  const thumbBlob = await new Promise(r => t.toBlob(r, mime, quality));
+  return { mainBlob, thumbBlob, width: img.width, height: img.height };
+}
+
+// ---- elements ----
+const galleryEl = qs('#gallery');
+const emptyEl = qs('#empty');
+const brand = qs('#brand');
+const searchInput = qs('#search');
+const sortSelect = qs('#sort');
+const filterSelect = qs('#filter');
+const btnNew = qs('#btnNew');
+const btnExport = qs('#btnExport');
+const importFile = qs('#importFile');
+const btnClear = qs('#btnClear');
+
+const editorModal = qs('#editorModal');
+const editorClose = qs('#editorClose');
+const editorForm = qs('#editorForm');
+const filesInput = qs('#files');
+const selectedNames = qs('#selectedNames');
+const previewEl = qs('#preview');
+const titleInput = qs('#title');
+const bodyInput = qs('#body');
+const tagsInput = qs('#tags');
+const categoryInput = qs('#category');
+const btnSave = qs('#btnSave');
+const btnSaveClose = qs('#btnSaveClose');
+const editorProgress = qs('#editorProgress');
+const anonPassRow = qs('#anonPassRow');
+const anonPasswordInput = qs('#anonPassword');
+const nsfwCheck = qs('#nsfwCheck');
+const autoNsfwCheck = qs('#autoNsfwCheck');
+
+const postView = qs('#postView');
+const postTitleView = qs('#postTitleView');
+const metaView = qs('#metaView');
+const imageStack = qs('#imageStack');
+const carouselThumbs = qs('#carouselThumbs');
+const postBodyEl = qs('#postBody');
+const postTagsEl = qs('#postTags');
+const btnBack = qs('#btnBack');
+const btnEditPost = qs('#btnEditPost');
+const btnDeletePost = qs('#btnDeletePost');
+const downloadLink = qs('#downloadLink');
+const copyBodyBtn = qs('#copyBodyBtn');
+const claimBtn = qs('#claimBtn');
+
+const copyModalBackdrop = qs('#copyModalBackdrop');
+const copyModalOk = qs('#copyModalOk');
+
+const settingsBackdrop = qs('#settingsBackdrop');
+const settingsClose = qs('#settingsClose');
+const settingsBtn = qs('#settingsBtn');
+const optAllowAnon = qs('#optAllowAnon');
+const optAllowNSFW = qs('#optAllowNSFW');
+const optRequireMember = qs('#optRequireMember');
+const optAutoNsfw = qs('#optAutoNsfw');
+const backupServerInput = qs('#backupServer');
+const btnBackupNow = qs('#btnBackupNow');
+const btnClearUsers = qs('#btnClearUsers');
+
+const loginBackdrop = qs('#loginBackdrop');
+const loginBtn = qs('#loginBtn');
+const registerBtn = qs('#registerBtn');
+const doLogin = qs('#doLogin');
+const doRegister = qs('#doRegister');
+const doResetToken = qs('#doResetToken');
+const useResetToken = qs('#useResetToken');
+const authUsername = qs('#authUsername');
+const authPassword = qs('#authPassword');
+const authMsg = qs('#authMsg');
+const userArea = qs('#userArea');
+const userName = qs('#userName');
+const userAvatar = qs('#userAvatar');
+const profileBtn = qs('#profileBtn');
+const logoutBtn = qs('#logoutBtn');
+
+const profileBackdrop = qs('#profileBackdrop');
+const profileAvatarPreview = qs('#profileAvatarPreview');
+const profileDisplayName = qs('#profileDisplayName');
+const profileBio = qs('#profileBio');
+const profileAvatarFile = qs('#profileAvatarFile');
+const saveProfile = qs('#saveProfile');
+const changePassword = qs('#changePassword');
+const pwChangeRow = qs('#pwChangeRow');
+const pwOld = qs('#pwOld');
+const pwNew = qs('#pwNew');
+const doChangePw = qs('#doChangePw');
+
+let cachedPosts = [];
+let currentPostId = null;
+let editMode = false;
+let editingId = null;
+
+// ---- password hashing (SHA-256 hex) ----
+async function hashPassword(password){
+  if(window.crypto && crypto.subtle && typeof crypto.subtle.digest === 'function'){
+    const enc = new TextEncoder();
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(password || ''));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  } else {
+    // fallback simple hash (not cryptographically secure) — for very old environments
+    let h = 0; for(let i=0;i<password.length;i++){ h = ((h<<5)-h) + password.charCodeAt(i); h |= 0; }
+    return ('fallback'+Math.abs(h)).toString();
+  }
+}
+
+// ---- user management + profiles ----
+async function createUser(username, password){
+  username = String(username||'').trim();
+  if(!username || !password) throw new Error('아이디/비밀번호 필요');
+  if(!/^[a-zA-Z0-9._-]{3,}$/.test(username)) throw new Error('아이디는 3자 이상 영숫자/._- 만 허용');
+  if(password.length < 4) throw new Error('비밀번호는 4자 이상이어야 합니다');
+  // ensure unique
+  const existing = await getUserByUsername(username);
+  if(existing) throw new Error('이미 존재하는 아이디입니다');
+  const id = uid('u');
+  const isFirst = (await dbGetAll(USER_STORE)).length === 0;
+  const role = isFirst ? 'admin' : 'user';
+  const pHash = await hashPassword(password);
+  const user = { id, username, passwordHash: pHash, role, profile: { displayName: username, bio:'', avatar:null }, created_at: new Date().toISOString(), resetTokenHash: null };
+  await dbPut(user, USER_STORE);
+  return user;
+}
+async function getUserByUsername(username){
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    try{
+      const tx = db.transaction(USER_STORE,'readonly');
+      const idx = tx.objectStore(USER_STORE).index('username');
+      const rq = idx.get(username);
+      rq.onsuccess = ()=> res(rq.result || null);
+      rq.onerror = ()=> res(null);
+    } catch(e){ res(null); }
+  });
+}
+async function authenticateUser(username, password){
+  const u = await getUserByUsername(username);
+  if(!u) return null;
+  const pHash = await hashPassword(password);
+  if(pHash === u.passwordHash) return { id: u.id, username: u.username, role: u.role };
+  return null;
+}
+async function updateUserProfile(userId, profile){
+  const u = await dbGet(userId, USER_STORE);
+  if(!u) throw new Error('사용자 없음');
+  u.profile = Object.assign(u.profile||{}, profile);
+  await dbPut(u, USER_STORE);
+  return u;
+}
+async function changeUserPassword(userId, oldPw, newPw){
+  const u = await dbGet(userId, USER_STORE);
+  if(!u) throw new Error('사용자 없음');
+  const oldHash = await hashPassword(oldPw);
+  if(oldHash !== u.passwordHash) throw new Error('현재 비밀번호가 일치하지 않습니다');
+  if(newPw.length < 4) throw new Error('새 비밀번호는 4자 이상');
+  u.passwordHash = await hashPassword(newPw);
+  await dbPut(u, USER_STORE);
+  return true;
+}
+async function setUserPasswordByResetToken(username, token, newPw){
+  const u = await getUserByUsername(username);
+  if(!u) throw new Error('사용자 없음');
+  const hashToken = await hashPassword(token);
+  if(!u.resetTokenHash || u.resetTokenHash !== hashToken) throw new Error('리셋 토큰이 유효하지 않습니다');
+  u.passwordHash = await hashPassword(newPw);
+  u.resetTokenHash = null;
+  await dbPut(u, USER_STORE);
+  return true;
+}
+async function createResetTokenForUser(username){
+  const u = await getUserByUsername(username);
+  if(!u) throw new Error('사용자 없음');
+  const token = uid('t') + '-' + Math.random().toString(36).slice(2,10);
+  u.resetTokenHash = await hashPassword(token);
+  await dbPut(u, USER_STORE);
+  return token; // show to user — they must save it securely
+}
+
+function setCurrentUser(user){
+  currentUser = user;
+  if(user){
+    userArea.style.display = 'flex';
+    userName.textContent = user.username + (user.role === 'admin' ? ' (관리자)' : '');
+    loginBtn.style.display = 'none';
+    registerBtn.style.display = 'none';
+    // load avatar if available
+    (async ()=>{
+      const u = await dbGet(user.id, USER_STORE);
+      if(u && u.profile && u.profile.avatar){
+        userAvatar.src = u.profile.avatar; userAvatar.style.display = 'inline-block';
+      } else {
+        userAvatar.style.display = 'none';
+      }
+    })();
+  } else {
+    userArea.style.display = 'none';
+    loginBtn.style.display = 'inline-block';
+    registerBtn.style.display = 'inline-block';
+  }
+  updateEditorAnonRow();
+  updateNewButtonState();
+}
+logoutBtn.addEventListener('click', ()=> {
+  setCurrentUser(null);
+  persistUserState();
+  toast('로그아웃되었습니다');
+});
+
+// persist currentUser in localStorage (minimal)
+function persistUserState(){
+  if(currentUser) localStorage.setItem('minipix_current_user', JSON.stringify(currentUser));
+  else localStorage.removeItem('minipix_current_user');
+}
+
+// ---- boot (fixed sequence: DB -> attach -> settings -> restore user -> render -> route)----
+(async function boot(){
+  try {
+    await openDB();
+  } catch(e){
+    console.error('DB open failed at boot', e);
+  }
+  attachEvents();
+  updateSettingsUI();
+
+  // Restore current user BEFORE rendering gallery or routing
+  try{
+    const raw = localStorage.getItem('minipix_current_user');
+    if(raw){
+      try{
+        const saved = JSON.parse(raw);
+        if(saved){
+          setCurrentUser(saved);
+          console.log('Restored current user at boot:', saved.username);
+        } else {
+          setCurrentUser(null);
+        }
+      } catch(err){
+        console.warn('Failed to parse saved user at boot', err);
+        setCurrentUser(null);
+      }
+    } else {
+      setCurrentUser(null);
+    }
+  } catch(err){
+    console.warn('Error while loading saved user at boot', err);
+    setCurrentUser(null);
+  }
+
+  // Render gallery after DB and user restoration
+  try {
+    await renderGallery();
+  } catch(e){
+    console.error('renderGallery error at boot', e);
+  }
+
+  // Finally route (post view / gallery)
+  try {
+    routeFromLocation();
+  } catch(e){
+    console.error('routeFromLocation error at boot', e);
+  }
+})();
+
+function loadInitialUserState(){
+  // kept for compatibility, but boot does restoration inline
+  const raw = localStorage.getItem('minipix_current_user');
+  if(raw){
+    try{ setCurrentUser(JSON.parse(raw)); } catch(e){ setCurrentUser(null); }
+  } else {
+    setCurrentUser(null);
+  }
+}
+
+function routeFromLocation(){
+  const params = new URLSearchParams(location.search);
+  const view = params.get('view');
+  const id = params.get('id');
+  if(view === 'post' && id){
+    showPostView(id, false);
+  } else {
+    showGallery(false);
+  }
+}
+
+// ---- navigation helpers ----
+function goHome(push=true){
+  if(push) history.pushState({}, '', location.pathname);
+  showGallery(true);
+}
+function goPost(id, push=true){
+  if(push) history.pushState({}, '', `${location.pathname}?view=post&id=${encodeURIComponent(id)}`);
+  showPostView(id, true);
+}
+window.addEventListener('popstate', ()=> routeFromLocation());
+
+// ---- gallery ----
+async function showGallery(scrollTop=true){
+  postView.style.display = 'none';
+  editorModal.style.display = 'none';
+  profileBackdrop.style.display = 'none';
+  loginBackdrop.style.display = 'none';
+  settingsBackdrop.style.display = 'none';
+  await renderGallery();
+  if(scrollTop) window.scrollTo({top:0,behavior:'instant'});
+}
+
+async function renderGallery(){
+  revokeAllURLs();
+  const posts = await dbGetAll(STORE);
+  cachedPosts = posts.sort((a,b)=> sortSelect.value === 'desc' ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at));
+  const q = (searchInput.value||'').trim().toLowerCase();
+  const cat = filterSelect.value;
+  let visible = cachedPosts.filter(p=>{
+    if(cat !== 'all' && p.category !== cat) return false;
+    if(!q) return true;
+    return (p.title||'').toLowerCase().includes(q) || (p.body||'').toLowerCase().includes(q) || (p.tags||[]).join(' ').toLowerCase().includes(q);
+  });
+
+  // NSFW filter: hide NSFW if not allowed in settings
+  if(!settings.allowNSFW){
+    visible = visible.filter(p => !p.nsfw);
+  }
+
+  galleryEl.innerHTML = '';
+  if(!visible.length){ emptyEl.style.display = 'block'; galleryEl.style.display='none'; return; }
+  else { emptyEl.style.display = 'none'; galleryEl.style.display='grid'; }
+
+  visible.forEach(p => {
+    const card = document.createElement('div'); card.className='card'; card.setAttribute('role','article');
+    const wrap = document.createElement('div'); wrap.className='thumb-wrap';
+    const img = document.createElement('img'); img.className='thumb'; img.alt = p.title || '이미지';
+    if(p.thumbBlobs && p.thumbBlobs.length) img.src = makeURL(p.thumbBlobs[0]);
+    else img.src = 'data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="100%" height="100%" fill="#f6f7fb"/></svg>');
+    wrap.appendChild(img);
+
+    if(p.nsfw){
+      const ns = document.createElement('div'); ns.className='nsfw-badge'; ns.textContent = 'NSFW';
+      card.appendChild(ns);
+    }
+
+    const hover = document.createElement('div'); hover.className='hover';
+    const author = p.authorName ? escapeHtml(p.authorName) : (p.anon ? '익명' : '비회원');
+    hover.innerHTML = `<div class="title">${p.title?escapeHtml(p.title):'(제목없음)'}</div><div class="meta">${(p.tags||[]).slice(0,3).join(' · ')} · ${author} · ${new Date(p.created_at).toLocaleString()}</div>`;
+    card.appendChild(wrap); card.appendChild(hover);
+    card.addEventListener('click', ()=> goPost(p.id));
+    galleryEl.appendChild(card);
+  });
+}
+
+// ---- post view ----
+async function showPostView(id, scrollTop){
+  editorModal.style.display = 'none';
+  profileBackdrop.style.display = 'none';
+  const post = await dbGet(id);
+  if(!post){ toast('게시물을 찾을 수 없습니다.'); goHome(); return; }
+  currentPostId = id;
+  postTitleView.textContent = post.title || '(제목없음)';
+  const author = post.authorName ? post.authorName : (post.anon ? '익명' : '비회원');
+  // author clickable if member
+  let authorHtml = author;
+  if(post.authorId){
+    authorHtml = `<a href="#" class="authorLink" data-author="${post.authorId}">${escapeHtml(post.authorName)}</a>`;
+  } else if(post.anon){
+    authorHtml = '익명';
+  }
+  metaView.innerHTML = `${new Date(post.created_at).toLocaleString()} · ${post.category||''} · ${authorHtml}`;
+
+  // attach click handler for author links
+  setTimeout(()=> {
+    const as = qsa('.authorLink');
+    as.forEach(a => a.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const aid = a.dataset.author;
+      showProfileById(aid);
+    }));
+  },0);
+
+  imageStack.innerHTML = ''; carouselThumbs.innerHTML = ''; carouselThumbs.style.display='none';
+  if(post.mainBlobs && post.mainBlobs.length){
+    post.mainBlobs.forEach((b, idx) => {
+      const wrap = document.createElement('div'); wrap.style.position='relative';
+      const img = document.createElement('img'); img.src = makeURL(b); img.style.width='100%'; img.style.height='auto';
+      wrap.appendChild(img);
+      if(post.nsfw){
+        const ov = document.createElement('div'); ov.className='nsfw-overlay'; ov.textContent='NSFW — 민감한 콘텐츠';
+        wrap.appendChild(ov);
+      }
+      imageStack.appendChild(wrap);
+      // thumbs
+      const t = document.createElement('img'); t.src = makeURL((post.thumbBlobs && post.thumbBlobs[idx]) ? post.thumbBlobs[idx] : b);
+      t.addEventListener('click', ()=> { img.scrollIntoView({behavior:'smooth', block:'center'}); });
+      carouselThumbs.appendChild(t);
+    });
+    if(carouselThumbs.children.length) carouselThumbs.style.display='flex';
+  }
+  postBodyEl.textContent = post.body || '';
+  postTagsEl.innerHTML = '';
+  (post.tags || []).forEach(t => { const sp = document.createElement('span'); sp.className='tag'; sp.textContent = t; postTagsEl.appendChild(sp); });
+  downloadLink.href = (post.mainBlobs && post.mainBlobs[0]) ? makeURL(post.mainBlobs[0]) : '#';
+  downloadLink.download = (post.title?post.title.replace(/\s+/g,'_'):'image') + '.jpg';
+
+  // claim button (show if anon and user logged in)
+  if(post.anon && currentUser){
+    claimBtn.style.display = 'inline-block';
+  } else {
+    claimBtn.style.display = 'none';
+  }
+
+  document.getElementById('gallery').style.display = 'none';
+  emptyEl.style.display = 'none';
+  postView.style.display = 'block';
+  if(scrollTop) window.scrollTo({top:0,behavior:'instant'});
+}
+
+// ---- editor ----
+function openEditor(opts={mode:'new', id:null}){
+  editMode = opts.mode === 'edit';
+  editingId = opts.id || null;
+  previewEl.innerHTML = ''; filesInput.value = ''; selectedNames.textContent = '선택된 파일 없음'; editorProgress.textContent = '';
+  anonPasswordInput.value = '';
+  nsfwCheck.checked = false;
+  autoNsfwCheck.checked = settings.autoNsfw;
+  if(editMode){ editorFormResetForEdit(editingId); qs('#editorTitle').textContent = '게시물 편집'; }
+  else { qs('#editorTitle').textContent = '새 글 올리기'; titleInput.value=''; bodyInput.value=''; tagsInput.value=''; categoryInput.value='photos'; }
+  editorModal.style.display = 'flex';
+  editorModal.setAttribute('aria-hidden','false');
+  updateEditorAnonRow();
+  window.scrollTo({top:0,behavior:'instant'});
+}
+async function editorFormResetForEdit(id){
+  const post = await dbGet(id);
+  if(!post) return;
+  titleInput.value = post.title || '';
+  bodyInput.value = post.body || '';
+  tagsInput.value = (post.tags||[]).join(', ');
+  categoryInput.value = post.category || 'photos';
+  nsfwCheck.checked = !!post.nsfw;
+  previewEl.innerHTML = '';
+  (post.thumbBlobs || []).forEach(b => { const img = document.createElement('img'); img.src = makeURL(b); previewEl.appendChild(img); });
+}
+
+filesInput.addEventListener('change', ()=>{
+  const files = Array.from(filesInput.files || []);
+  if(!files.length){ selectedNames.textContent = '선택된 파일 없음'; previewEl.innerHTML=''; return; }
+  const slice = files.slice(0, MAX_FILES);
+  selectedNames.textContent = slice.map(f=>f.name).join(', ').slice(0,200);
+  previewEl.innerHTML = '';
+  slice.forEach(f => {
+    const url = URL.createObjectURL(f);
+    previewEl.appendChild(Object.assign(document.createElement('img'), {src:url}));
+    _urls.add(url);
+  });
+});
+
+editorClose.addEventListener('click', ()=> { editorModal.style.display='none'; editorModal.setAttribute('aria-hidden','true'); });
+btnNew.addEventListener('click', ()=>{ openEditor({mode:'new'}); });
+btnSave.addEventListener('click', ()=> editorSave(false));
+btnSaveClose.addEventListener('click', ()=> editorSave(true));
+
+// (rest of original script unchanged...)
+
+</script>
+
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDqed9Gd-LiaRK2FgLLX7whqHqD2rn6R-g",
+    authDomain: "miniai-ce684.firebaseapp.com",
+    projectId: "miniai-ce684",
+    storageBucket: "miniai-ce684.firebasestorage.com",
+    messagingSenderId: "631892825115",
+    appId: "1:631892825115:web:8b4e2b3926a22128e2d4be"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+</script>
+</body>
+</html>
